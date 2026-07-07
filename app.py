@@ -319,3 +319,78 @@ else:
                 use_container_width=True,
                 hide_index=True
             )
+
+from fpdf import FPDF
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email.mime.text import MIMEText
+from email import encoders
+import io
+
+st.divider()
+st.header("📩 Recibe tu Plan de Optimización por Correo")
+st.write("Ingresa tu correo para recibir un resumen en PDF con tu mes de libertad financiera y la proyección de tu portafolio.")
+
+correo_usuario = st.text_input("Tu correo electrónico:")
+
+if st.button("Generar y Enviar PDF"):
+    if correo_usuario and "df_resultados" in locals(): # Asegurarnos de que la simulación se ejecutó
+        with st.spinner('Generando reporte y enviando...'):
+            try:
+                # --- 1. CREAR EL PDF (Básico) ---
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.set_font("Arial", size=12)
+                
+                # Encabezado
+                pdf.set_font("Arial", style="B", size=16)
+                pdf.cell(200, 10, txt="Reporte de Optimización Financiera", ln=True, align='C')
+                pdf.ln(10)
+                
+                # Datos clave
+                pdf.set_font("Arial", size=12)
+                pdf.cell(200, 10, txt=f"Mes proyectado para salir de deudas: {mes_libertad_texto}", ln=True)
+                pdf.cell(200, 10, txt=f"Patrimonio proyectado (Mes {meses_proyeccion}): ${patrimonio_final:,.2f}", ln=True)
+                pdf.cell(200, 10, txt=f"Flujo de caja libre inicial: ${flujo_disponible_inicial:,.2f}", ln=True)
+                
+                # Guardar PDF en memoria (sin crear archivo físico en el servidor)
+                pdf_buffer = io.BytesIO()
+                pdf_output = pdf.output(dest='S').encode('latin1')
+                pdf_buffer.write(pdf_output)
+                pdf_buffer.seek(0)
+
+                # --- 2. CONFIGURAR EL CORREO ---
+                # NOTA: Debes usar un App Password si usas Gmail
+                remitente = "alejo1109@gmail.com" 
+                password = st.secrets["EMAIL_PASSWORD"] 
+
+                msg = MIMEMultipart()
+                msg['From'] = remitente
+                msg['To'] = correo_usuario
+                msg['Subject'] = "Tu Plan de Optimización de Deuda a Inversión"
+                
+                cuerpo = "Hola,\n\nAdjunto encontrarás el resumen de tu proyección financiera.\n\n¡Sigue construyendo tu patrimonio!"
+                msg.attach(MIMEText(cuerpo, 'plain'))
+
+                # --- 3. ADJUNTAR EL PDF ---
+                part = MIMEBase('application', 'octet-stream')
+                part.set_payload(pdf_buffer.read())
+                encoders.encode_base64(part)
+                part.add_header('Content-Disposition', f'attachment; filename="Plan_Financiero.pdf"')
+                msg.attach(part)
+
+                # --- 4. ENVIAR VIA SMTP (Ejemplo con Gmail) ---
+                server = smtplib.SMTP('smtp.gmail.com', 587)
+                server.starttls()
+                server.login(remitente, password)
+                text = msg.as_string()
+                server.sendmail(remitente, correo_usuario, text)
+                server.quit()
+
+                st.success(f"¡Reporte enviado exitosamente a {correo_usuario}!")
+
+            except Exception as e:
+                st.error(f"Hubo un error al enviar el correo: {e}")
+    else:
+        st.warning("Por favor ingresa un correo válido y asegúrate de ejecutar la simulación primero.")
