@@ -10,6 +10,8 @@ from email.mime.text import MIMEText
 from email import encoders
 import io
 import tempfile
+import time
+import os
 
 # Configuración avanzada de la interfaz de usuario
 st.set_page_config(page_title="Optimizador de Deuda a Inversión", layout="wide")
@@ -341,25 +343,31 @@ if st.button("Generar y Enviar PDF"):
             try:                
                 # --- 1. PREPARAR IMÁGENES CON KALEIDO ---
                 import kaleido
-                import tempfile
                 
-                # Creamos los archivos temporales primero
+                # Creamos los archivos temporales
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_transicion, \
                      tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_crecimiento:
                     
                     img_transicion = tmp_transicion.name
                     img_crecimiento = tmp_crecimiento.name
                     
-                    # Intentamos generar las imágenes
                     try:
+                        # Escribimos las imágenes
                         fig_transicion.write_image(img_transicion, engine="kaleido")
                         fig_crecimiento.write_image(img_crecimiento, engine="kaleido")
+                        
+                        # PAUSA TÉCNICA: Damos tiempo al sistema de archivos para cerrar el buffer
+                        time.sleep(1) 
+                        
+                        # VALIDACIÓN: Si el archivo está vacío, forzamos un error para entrar al except
+                        if os.path.getsize(img_transicion) < 100 or os.path.getsize(img_crecimiento) < 100:
+                            raise Exception("Archivo de imagen corrupto o vacío.")
+                            
                     except Exception as e:
-                        # Si falla, avisamos al usuario pero el PDF se genera con el resto de datos
-                        st.warning("No se pudieron generar las gráficas en el PDF.")
-                        # Opcional: imprimir el error en la terminal para depurar
-                        # print(f"Error generando imágenes: {e}")
-
+                        st.warning(f"No se pudieron generar las gráficas (Detalle: {e}). El reporte se enviará solo con texto.")
+                        img_transicion = None # Marcamos como nulo para que el PDF no intente leerlo
+                        img_crecimiento = None
+                        
                 # --- 2. CREAR EL PDF AVANZADO ---
                 pdf = FPDF()
                 pdf.add_page()
@@ -400,11 +408,16 @@ if st.button("Generar y Enviar PDF"):
                 
                 # Sección D: Gráficas
                 # Agregamos una nueva página para que las gráficas se vean grandes y limpias
-                pdf.add_page()
-                pdf.set_font("Arial", style="B", size=14)
-                pdf.cell(200, 10, txt="4. Transicion: Deuda vs Inversion", ln=True)
-                # Insertar la gráfica de transición
-                pdf.image(img_transicion, x=10, y=None, w=190)
+                # Sección D: Gráficas en el PDF
+                if img_transicion and img_crecimiento:
+                    pdf.add_page()
+                    pdf.set_font("Arial", style="B", size=14)
+                    pdf.cell(200, 10, txt="4. Transicion: Deuda vs Inversion", ln=True)
+                    pdf.image(img_transicion, x=10, y=None, w=190)
+                    
+                    pdf.ln(10)
+                    pdf.cell(200, 10, txt="5. Crecimiento Patrimonial (Interes Compuesto)", ln=True)
+                    pdf.image(img_crecimiento, x=10, y=None, w=190)
                 
                 pdf.ln(10)
                 pdf.cell(200, 10, txt="5. Crecimiento Patrimonial (Interes Compuesto)", ln=True)
