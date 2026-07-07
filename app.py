@@ -2,6 +2,14 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import copy
+from fpdf import FPDF
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email.mime.text import MIMEText
+from email import encoders
+import io
+import tempfile
 
 # Configuración avanzada de la interfaz de usuario
 st.set_page_config(page_title="Optimizador de Deuda a Inversión", layout="wide")
@@ -320,13 +328,6 @@ else:
                 hide_index=True
             )
 
-from fpdf import FPDF
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email.mime.text import MIMEText
-from email import encoders
-import io
 
 st.divider()
 st.header("📩 Recibe tu Plan de Optimización por Correo")
@@ -337,24 +338,69 @@ correo_usuario = st.text_input("Tu correo electrónico:")
 if st.button("Generar y Enviar PDF"):
     if correo_usuario and "df_resultados" in locals(): # Asegurarnos de que la simulación se ejecutó
         with st.spinner('Generando reporte y enviando...'):
-            try:
-                # --- 1. CREAR EL PDF (Básico) ---
+            try:                
+                # --- 1. PREPARAR IMÁGENES DE LAS GRÁFICAS ---
+                # Tomamos una "foto" de las gráficas de Plotly y las guardamos temporalmente
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_transicion:
+                    fig_transicion.write_image(tmp_transicion.name, engine="kaleido")
+                    img_transicion = tmp_transicion.name
+                    
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_crecimiento:
+                    fig_crecimiento.write_image(tmp_crecimiento.name, engine="kaleido")
+                    img_crecimiento = tmp_crecimiento.name
+
+                # --- 2. CREAR EL PDF AVANZADO ---
                 pdf = FPDF()
                 pdf.add_page()
-                pdf.set_font("Arial", size=12)
                 
-                # Encabezado
-                pdf.set_font("Arial", style="B", size=16)
-                pdf.cell(200, 10, txt="Reporte de Optimización Financiera", ln=True, align='C')
+                # Encabezado Principal
+                pdf.set_font("Arial", style="B", size=18)
+                pdf.set_text_color(43, 232, 168) # Verde de tu marca
+                pdf.cell(200, 10, txt="Plan de Optimizacion: Deuda a Inversion", ln=True, align='C')
+                pdf.set_text_color(0, 0, 0) # Volver a negro
+                pdf.ln(8)
+                
+                # Sección A: Datos Ingresados
+                pdf.set_font("Arial", style="B", size=12)
+                pdf.cell(200, 10, txt="1. Tu Situacion Actual", ln=True)
+                pdf.set_font("Arial", size=11)
+                pdf.cell(200, 7, txt=f"Ingresos Mensuales: ${ingresos:,.2f}", ln=True)
+                pdf.cell(200, 7, txt=f"Gastos Fijos (Sin deudas): ${gastos:,.2f}", ln=True)
+                pdf.cell(200, 7, txt=f"Flujo de Caja Libre Inicial: ${flujo_disponible_inicial:,.2f}", ln=True)
+                pdf.ln(5)
+                
+                # Sección B: Deudas
+                pdf.set_font("Arial", style="B", size=12)
+                pdf.cell(200, 10, txt="2. Obligaciones a Liquidar (Metodo Avalancha)", ln=True)
+                pdf.set_font("Arial", size=10)
+                if st.session_state.deudas:
+                    for d in st.session_state.deudas:
+                        pdf.cell(200, 6, txt=f"- {d['Deuda']}: Saldo ${d['Saldo']:,.2f} | Tasa: {d['Tasa (%)']}% | Min: ${d['Pago Mínimo']:,.2f}", ln=True)
+                else:
+                    pdf.cell(200, 6, txt="No registraste deudas. Todo tu flujo va directo a inversion.", ln=True)
+                pdf.ln(8)
+                
+                # Sección C: Proyección Final
+                pdf.set_font("Arial", style="B", size=12)
+                pdf.cell(200, 10, txt="3. Tu Proyeccion Estrategica", ln=True)
+                pdf.set_font("Arial", size=11)
+                pdf.cell(200, 7, txt=f"Mes de Libertad Financiera (Cero Deudas): {mes_libertad_texto}", ln=True)
+                pdf.cell(200, 7, txt=f"Patrimonio Total Estimado (Mes {meses_proyeccion}): ${patrimonio_final:,.2f}", ln=True)
+                
+                # Sección D: Gráficas
+                # Agregamos una nueva página para que las gráficas se vean grandes y limpias
+                pdf.add_page()
+                pdf.set_font("Arial", style="B", size=14)
+                pdf.cell(200, 10, txt="4. Transicion: Deuda vs Inversion", ln=True)
+                # Insertar la gráfica de transición
+                pdf.image(img_transicion, x=10, y=None, w=190)
+                
                 pdf.ln(10)
+                pdf.cell(200, 10, txt="5. Crecimiento Patrimonial (Interes Compuesto)", ln=True)
+                # Insertar la gráfica de crecimiento
+                pdf.image(img_crecimiento, x=10, y=None, w=190)
                 
-                # Datos clave
-                pdf.set_font("Arial", size=12)
-                pdf.cell(200, 10, txt=f"Mes proyectado para salir de deudas: {mes_libertad_texto}", ln=True)
-                pdf.cell(200, 10, txt=f"Patrimonio proyectado (Mes {meses_proyeccion}): ${patrimonio_final:,.2f}", ln=True)
-                pdf.cell(200, 10, txt=f"Flujo de caja libre inicial: ${flujo_disponible_inicial:,.2f}", ln=True)
-                
-                # Guardar PDF en memoria (sin crear archivo físico en el servidor)
+                # Guardar PDF en memoria para adjuntarlo al correo
                 pdf_buffer = io.BytesIO()
                 pdf_output = pdf.output(dest='S').encode('latin1')
                 pdf_buffer.write(pdf_output)
