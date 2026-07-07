@@ -339,15 +339,26 @@ if st.button("Generar y Enviar PDF"):
     if correo_usuario and "df_resultados" in locals(): # Asegurarnos de que la simulación se ejecutó
         with st.spinner('Generando reporte y enviando...'):
             try:                
-                # --- 1. PREPARAR IMÁGENES DE LAS GRÁFICAS ---
-                # Tomamos una "foto" de las gráficas de Plotly y las guardamos temporalmente
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_transicion:
-                    fig_transicion.write_image(tmp_transicion.name, engine="kaleido")
-                    img_transicion = tmp_transicion.name
+                # --- 1. PREPARAR IMÁGENES CON KALEIDO ---
+                import kaleido
+                import tempfile
+                
+                # Creamos los archivos temporales primero
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_transicion, \
+                     tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_crecimiento:
                     
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_crecimiento:
-                    fig_crecimiento.write_image(tmp_crecimiento.name, engine="kaleido")
+                    img_transicion = tmp_transicion.name
                     img_crecimiento = tmp_crecimiento.name
+                    
+                    # Intentamos generar las imágenes
+                    try:
+                        fig_transicion.write_image(img_transicion, engine="kaleido")
+                        fig_crecimiento.write_image(img_crecimiento, engine="kaleido")
+                    except Exception as e:
+                        # Si falla, avisamos al usuario pero el PDF se genera con el resto de datos
+                        st.warning("No se pudieron generar las gráficas en el PDF.")
+                        # Opcional: imprimir el error en la terminal para depurar
+                        # print(f"Error generando imágenes: {e}")
 
                 # --- 2. CREAR EL PDF AVANZADO ---
                 pdf = FPDF()
