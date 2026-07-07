@@ -1,0 +1,2 @@
+# optimizador-financiero
+Calculadora financiera
