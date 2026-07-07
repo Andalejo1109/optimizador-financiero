@@ -371,7 +371,13 @@ if st.button("Generar y Enviar PDF"):
                 
                 pdf.ln(10)
                 pdf.set_font("Arial", style="I", size=10)
-                pdf.cell(200, 10, txt="Nota: Puedes ver las graficas interactivas detalladas en el simulador de la web.", ln=True, align='C')                        
+                pdf.cell(200, 10, txt="Nota: Puedes ver las graficas interactivas detalladas en el simulador de la web.", ln=True, align='C') 
+
+                # --- LÍNEA FINAL DE SUGERENCIA ---
+                pdf.ln(15) # Un poco de espacio antes de la nota final
+                pdf.set_font("Arial", style="I", size=9)
+                pdf.set_text_color(100, 100, 100) # Un color gris más suave
+                pdf.multi_cell(0, 5, txt="Tip: Si deseas guardar una copia fisica en tu equipo, tambien puedes usar 'Ctrl + P' y seleccionar 'Guardar como PDF' en tu navegador.", align='C')
                                 
                 # Guardar PDF en memoria para adjuntarlo al correo
                 pdf_buffer = io.BytesIO()
