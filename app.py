@@ -341,89 +341,38 @@ if st.button("Generar y Enviar PDF"):
     if correo_usuario and "df_resultados" in locals(): # Asegurarnos de que la simulación se ejecutó
         with st.spinner('Generando reporte y enviando...'):
             try:                
-                # --- 1. PREPARAR IMÁGENES CON KALEIDO ---
-                import kaleido
+               # --- 1. PREPARAR RESUMEN (Sin depender de Kaleido/Chrome) ---
+                # Ya no intentaremos capturar imágenes, el PDF se enfocará en el diagnóstico.
                 
-                # Creamos los archivos temporales
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_transicion, \
-                     tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_crecimiento:
-                    
-                    img_transicion = tmp_transicion.name
-                    img_crecimiento = tmp_crecimiento.name
-                    
-                    try:
-                        # Escribimos las imágenes
-                        fig_transicion.write_image(img_transicion, engine="kaleido")
-                        fig_crecimiento.write_image(img_crecimiento, engine="kaleido")
-                        
-                        # PAUSA TÉCNICA: Damos tiempo al sistema de archivos para cerrar el buffer
-                        time.sleep(1) 
-                        
-                        # VALIDACIÓN: Si el archivo está vacío, forzamos un error para entrar al except
-                        if os.path.getsize(img_transicion) < 100 or os.path.getsize(img_crecimiento) < 100:
-                            raise Exception("Archivo de imagen corrupto o vacío.")
-                            
-                    except Exception as e:
-                        st.warning(f"No se pudieron generar las gráficas (Detalle: {e}). El reporte se enviará solo con texto.")
-                        img_transicion = None # Marcamos como nulo para que el PDF no intente leerlo
-                        img_crecimiento = None
-                        
-                # --- 2. CREAR EL PDF AVANZADO ---
                 pdf = FPDF()
                 pdf.add_page()
                 
-                # Encabezado Principal
+                # Encabezado con estilo
+                pdf.set_fill_color(230, 230, 230)
+                pdf.rect(0, 0, 210, 40, 'F')
                 pdf.set_font("Arial", style="B", size=18)
-                pdf.set_text_color(43, 232, 168) # Verde de tu marca
-                pdf.cell(200, 10, txt="Plan de Optimizacion: Deuda a Inversion", ln=True, align='C')
-                pdf.set_text_color(0, 0, 0) # Volver a negro
-                pdf.ln(8)
+                pdf.cell(200, 15, txt="Diagnostico Financiero Personalizado", ln=True, align='C')
+                pdf.ln(10)
                 
-                # Sección A: Datos Ingresados
-                pdf.set_font("Arial", style="B", size=12)
-                pdf.cell(200, 10, txt="1. Tu Situacion Actual", ln=True)
+                # Resumen de Proyección
+                pdf.set_font("Arial", style="B", size=13)
+                pdf.cell(200, 10, txt="Resumen de Proyeccion", ln=True)
                 pdf.set_font("Arial", size=11)
-                pdf.cell(200, 7, txt=f"Ingresos Mensuales: ${ingresos:,.2f}", ln=True)
-                pdf.cell(200, 7, txt=f"Gastos Fijos (Sin deudas): ${gastos:,.2f}", ln=True)
-                pdf.cell(200, 7, txt=f"Flujo de Caja Libre Inicial: ${flujo_disponible_inicial:,.2f}", ln=True)
+                pdf.cell(200, 7, txt=f"Mes para quedar libre de deudas: {mes_libertad_texto}", ln=True)
+                pdf.cell(200, 7, txt=f"Patrimonio proyectado (Mes {meses_proyeccion}): ${patrimonio_final:,.2f}", ln=True)
                 pdf.ln(5)
                 
-                # Sección B: Deudas
-                pdf.set_font("Arial", style="B", size=12)
-                pdf.cell(200, 10, txt="2. Obligaciones a Liquidar (Metodo Avalancha)", ln=True)
+                # Lista de Deudas (Texto claro y limpio)
+                pdf.set_font("Arial", style="B", size=13)
+                pdf.cell(200, 10, txt="Estrategia de Pago (Avalancha):", ln=True)
                 pdf.set_font("Arial", size=10)
-                if st.session_state.deudas:
-                    for d in st.session_state.deudas:
-                        pdf.cell(200, 6, txt=f"- {d['Deuda']}: Saldo ${d['Saldo']:,.2f} | Tasa: {d['Tasa (%)']}% | Min: ${d['Pago Mínimo']:,.2f}", ln=True)
-                else:
-                    pdf.cell(200, 6, txt="No registraste deudas. Todo tu flujo va directo a inversion.", ln=True)
-                pdf.ln(8)
-                
-                # Sección C: Proyección Final
-                pdf.set_font("Arial", style="B", size=12)
-                pdf.cell(200, 10, txt="3. Tu Proyeccion Estrategica", ln=True)
-                pdf.set_font("Arial", size=11)
-                pdf.cell(200, 7, txt=f"Mes de Libertad Financiera (Cero Deudas): {mes_libertad_texto}", ln=True)
-                pdf.cell(200, 7, txt=f"Patrimonio Total Estimado (Mes {meses_proyeccion}): ${patrimonio_final:,.2f}", ln=True)
-                
-                # Sección D: Gráficas
-                # Agregamos una nueva página para que las gráficas se vean grandes y limpias
-                # Sección D: Gráficas en el PDF
-                if img_transicion and img_crecimiento:
-                    pdf.add_page()
-                    pdf.set_font("Arial", style="B", size=14)
-                    pdf.cell(200, 10, txt="4. Transicion: Deuda vs Inversion", ln=True)
-                    pdf.image(img_transicion, x=10, y=None, w=190)
-                    
-                    pdf.ln(10)
-                    pdf.cell(200, 10, txt="5. Crecimiento Patrimonial (Interes Compuesto)", ln=True)
-                    pdf.image(img_crecimiento, x=10, y=None, w=190)
+                for d in st.session_state.deudas:
+                    pdf.cell(200, 6, txt=f"- {d['Deuda']}: Saldo restante ${d['Saldo']:,.2f} al {d['Tasa (%)']}% de interes.", ln=True)
                 
                 pdf.ln(10)
-                pdf.cell(200, 10, txt="5. Crecimiento Patrimonial (Interes Compuesto)", ln=True)
-                # Insertar la gráfica de crecimiento
-                pdf.image(img_crecimiento, x=10, y=None, w=190)
-                
+                pdf.set_font("Arial", style="I", size=10)
+                pdf.cell(200, 10, txt="Nota: Puedes ver las graficas interactivas detalladas en el simulador de la web.", ln=True, align='C')                        
+                                
                 # Guardar PDF en memoria para adjuntarlo al correo
                 pdf_buffer = io.BytesIO()
                 pdf_output = pdf.output(dest='S').encode('latin1')
